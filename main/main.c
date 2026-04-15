@@ -1,6 +1,22 @@
 #include <stdio.h>
 #include "ssd1306.h"
 
+void send_command(i2c_master_dev_handle_t __dev_handle, uint8_t command) {
+    uint8_t data[2] = {0x00, command}; // 0x00 indicates a command
+    i2c_master_transmit(__dev_handle, data, 2, -1); // -1 for no timeout
+}
+
+void send_data(i2c_master_dev_handle_t __dev_handle, uint8_t *data, int len) {
+    uint8_t temp[129]; // 1 byte for control + 128 bytes for data
+    temp[0] = 0x40; // 0x40 indicates data
+
+    for(int i = 0; i < len; i++){
+        temp[i+1] = data[i];
+    }
+    
+    i2c_master_transmit(__dev_handle, temp, len + 1, -1); 
+}
+
 void app_main(void)
 {
 
