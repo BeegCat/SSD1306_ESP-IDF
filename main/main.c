@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include "ssd1306.h"
 
+uint8_t buffer[buffer_size] = {0}; /// Buffer to hold the display data, initialized to 0
+
 void send_command(i2c_master_dev_handle_t __dev_handle, uint8_t command) {
     uint8_t data[2] = {0x00, command};              /// 0x00 indicates a command
     i2c_master_transmit(__dev_handle, data, 2, -1); /// -1 for no timeout
@@ -15,6 +17,28 @@ void send_data(i2c_master_dev_handle_t __dev_handle, uint8_t *data, int len) {
     }
     
     i2c_master_transmit(__dev_handle, temp, len + 1, -1); 
+}
+
+void ssd1306_clear(){
+    for(int i=0; i<buffer_size; i++){
+        buffer[i] = 0x00; /// Clear the buffer
+    }
+}
+
+void ssd1306_draw_pixel(int x, int y){
+    int page = y / 8;                   /// Each page is 8 pixels high
+    int index = page * 128 + x;         /// Calculate the index in the buffer
+    buffer[index] |= (1 << (y % 8));    /// Set the corresponding bit for the pixel
+}
+
+void ssd1306_update(i2c_master_dev_handle_t __dev_handle) {
+    for (int page = 0; page < 8; page++) {
+        send_command(__dev_handle, 0xB0 + page);
+        send_command(__dev_handle, 0x00);
+        send_command(__dev_handle, 0x10);
+
+        send_data(__dev_handle, &buffer[page * 128], 128);
+    }
 }
 
 void app_main(void)
@@ -61,4 +85,46 @@ void app_main(void)
     send_command(dev_handle, 0xAE);       /// Display off
     send_command(dev_handle, 0x20);       /// Set memory addressing mode
     send_command(dev_handle, 0x10);       /// Set page addressing mode
+
+    send_command(dev_handle, 0xB0);       /// Set page start address for page addressing mode
+    send_command(dev_handle, 0xC8);       /// COM scan direction (flip vertically)
+    send_command(dev_handle, 0x00);       /// Set lower column address
+    send_command(dev_handle, 0x10);       /// Set higher column address
+
+    send_command(dev_handle, 0x40);       /// Set start line address
+    send_command(dev_handle, 0x81);       /// Set contrast control
+    send_command(dev_handle, 0xFF);       /// Max contrast
+
+    send_command(dev_handle, 0xA1);       /// Segment re-map (flip horizontally)
+    send_command(dev_handle, 0xA6);       /// Normal display (not inverted)
+    send_command(dev_handle, 0xA8);       /// Set multiplex ratio
+    send_command(dev_handle, 0x3F);       /// 1/64 duty
+
+    send_command(dev_handle, 0xA4);       /// Output RAM to display
+    send_command(dev_handle, 0xD3);       /// Set display offset
+    send_command(dev_handle, 0x00);       /// No offset
+
+    send_command(dev_handle, 0xD5);       /// Set display clock divide ratio
+    send_command(dev_handle, 0xF0);       /// Set divide ratio
+
+    send_command(dev_handle, 0xD9);       /// Set pre-charge period
+    send_command(dev_handle, 0x22);       /// Set pre-charge period (0
+
+    send_command(dev_handle, 0xDA);       /// Set COM pins hardware configuration
+    send_command(dev_handle, 0x12);       /// for 128x64 display
+
+    send_command(dev_handle, 0xDB);       /// Set VCOMH deselect level
+    send_command(dev_handle, 0x20);       /// Set VCOMH deselect
+
+    send_command(dev_handle, 0x8D);       /// Set charge pump
+    send_command(dev_handle, 0x14);       /// Enable charge pump
+
+    send_command(dev_handle, 0xAF);       /// Display on
+
+
+    ssd1306_clear(); /// Clear the display buffer
+    for(int i=0; i<64; i++){
+        ssd1306_draw_pixel(i,i); /// Draw a pixel at (10, 10)
+    }
+    ssd1306_update(dev_handle);
 }
